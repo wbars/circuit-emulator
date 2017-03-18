@@ -13,5 +13,7 @@ case class Wire(private var _signal: Signal = ZERO, var from: Option[Device] = N
 }
 
 object Wire {
+  def create(from: Device, to: Device): Wire = new Wire(from = Some(from), to = Some(to))
+
   def empty(): Wire = new Wire()
 }
