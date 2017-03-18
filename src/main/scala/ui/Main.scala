@@ -54,6 +54,12 @@ object Main extends SimpleSwingApplication {
         contents += new MenuItem(Action("Split") {
           panel.spawn(Device.split())
         })
+        contents += new MenuItem(Action("ZERO") {
+          panel.spawn(Device.zeroConst())
+        })
+        contents += new MenuItem(Action("ONE") {
+          panel.spawn(Device.oneConst())
+        })
       }
     }
     contents = panel
@@ -74,11 +80,13 @@ object Main extends SimpleSwingApplication {
     case _: Xor => "Xor"
     case _: Not => "Not"
     case _: Split => "Split"
+    case _: ZeroConst => "ZERO"
+    case _: OneConst => "ONE"
     case _ => "UNKNOWN"
   }
 }
 
-case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Boolean, var selected: Boolean = false) extends ShapeComponent(new Ellipse2D.Double(alignment, 0, diameter, diameter)) {
+case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Boolean, var selected: Boolean = false, val pos: Int = 0) extends ShapeComponent(new Ellipse2D.Double(alignment, 0, diameter, diameter)) {
   peer.setMaximumSize(new Dimension(diameter, diameter))
 
   listenTo(mouse.moves)
@@ -98,7 +106,7 @@ case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Bool
       } else {
         Main.outputSelected match {
           case Some(outPin: Pin) =>
-            Main.panel.spawn(Wire.create(outPin.uiDevice.device, uiDevice.device), outPin, this)
+            Main.panel.spawn(Wire.create(outPin.uiDevice.device, outPin.pos, uiDevice.device, pos), outPin, this)
             outPin.color = Color.black
             outPin.selected = false
             Main.outputSelected = None
@@ -136,7 +144,7 @@ class UiDevice(val device: Device) extends BorderPanel() {
       contents += VGlue
     }
 
-  private def initPins(size: Int, alignment: Int, input: Boolean): Seq[Pin] = Range(0, size).map(_ => Pin(this, alignment, defaultDiameter, input))
+  private def initPins(size: Int, alignment: Int, input: Boolean): Seq[Pin] = Range(0, size).map(i => Pin(this, alignment, defaultDiameter, input, pos = i))
 
 
   val label = new Label(Main.getText(device)) {
