@@ -84,6 +84,20 @@ abstract class BinaryReducer() extends Device() {
   override def outputSize(): Int = 1
 }
 
+abstract class UnaryProducer() extends Device() {
+  override def inputSize() = 0
+
+  override def outputSize() = 1
+}
+
+case class ZeroConst() extends UnaryProducer() {
+  override def computeSignal(): Signal = ZERO
+}
+
+case class OneConst() extends UnaryProducer() {
+  override def computeSignal(): Signal = ONE
+}
+
 case class And() extends BinaryReducer() {
   override def computeSignal(): Signal = incoming.head match {
     case Some(Wire(ONE, _, _)) => incoming.last match {
@@ -147,5 +161,9 @@ object Device {
   def xor(): Device = Xor()
 
   def split(): Device = Split()
+
+  def oneConst(): Device = OneConst()
+
+  def zeroConst(): Device = ZeroConst()
 }
 

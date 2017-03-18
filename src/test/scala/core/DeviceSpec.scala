@@ -141,6 +141,26 @@ class DeviceSpec extends FlatSpec with Matchers {
     })
   }
 
+  "ONE constant" should "be producer of ONE signal for one output" in {
+    val oneConst = Device.oneConst()
+    oneConst.inputSize() should be(0)
+    oneConst.outputSize() should be(1)
+
+    val outWire = Wire.empty()
+    oneConst.outWire(outWire)
+    outWire.signal should be(ONE)
+  }
+
+  "ZERO constant" should "be producer of ZERO signal for one output" in {
+    val oneConst = Device.zeroConst()
+    oneConst.inputSize() should be(0)
+    oneConst.outputSize() should be(1)
+
+    val outWire = Wire.empty()
+    oneConst.outWire(outWire)
+    outWire.signal should be(ZERO)
+  }
+
 
   def checkRow(inWires: Seq[Wire], inSignals: Seq[Signal], outWires: Seq[Wire], outSignals: Seq[Signal]): Unit = {
     inWires.indices.foreach(i => inWires(i).sendSignal(inSignals(i)))
