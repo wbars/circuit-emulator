@@ -62,6 +62,31 @@ class DeviceSpec extends FlatSpec with Matchers {
     outWire.signal should be(ONE)
   }
 
+
+  it should "allow attaching only one wire to each input wire" in {
+    val and = Device.and()
+    and.inputWireFree(0) should be(true)
+    and.inputWireFree(1) should be(true)
+    and.inWire(Wire.empty())
+    and.inputWireFree(0) should be(false)
+    and.inputWireFree(1) should be(true)
+    assertThrows[IllegalArgumentException] {
+      and.inWire(Wire.empty())
+    }
+  }
+
+  it should "allow attaching only one wire to each output wire" in {
+    val splitter = Device.split()
+    splitter.outputWireFree(0) should be(true)
+    splitter.outputWireFree(1) should be(true)
+    splitter.outWire(Wire.empty())
+    splitter.outputWireFree(0) should be(false)
+    splitter.outputWireFree(1) should be(true)
+    assertThrows[IllegalArgumentException] {
+      splitter.outWire(Wire.empty())
+    }
+  }
+
   "Match table" should "be true for NOT device" in {
     checkOneToOneDevice(Seq(
       (ZERO, ONE),

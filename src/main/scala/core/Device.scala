@@ -3,6 +3,16 @@ package core
 import scala.collection.mutable.ListBuffer
 
 abstract class Device() {
+  def inputWireFree(position: Int): Boolean = incoming(position) match {
+    case None => true
+    case _ => false
+  }
+
+  def outputWireFree(position: Int): Boolean = outcoming(position) match {
+    case None => true
+    case _ => false
+  }
+
   def releaseOutWire(position: Int): Unit = {
     outcoming(position) match {
       case Some(w: Wire) =>
@@ -30,6 +40,7 @@ abstract class Device() {
   }
 
   def outWire(wire: Wire, position: Int) {
+    if (!outputWireFree(position)) throw new IllegalArgumentException
     outcoming.update(position, Some(wire))
     wire.from = Some(this)
     reloadSignal()
@@ -38,6 +49,7 @@ abstract class Device() {
   def outWire(wire: Wire): Unit = outWire(wire, 0)
 
   def inWire(wire: Wire, position: Int) {
+    if (!inputWireFree(position)) throw new IllegalArgumentException
     incoming.update(position, Some(wire))
     wire.to = Some(this)
     reloadSignal()
