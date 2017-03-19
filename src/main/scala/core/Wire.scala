@@ -23,4 +23,9 @@ object Wire {
   }
 
   def empty(): Wire = new Wire()
+
+  def findWirePos(wire: Wire, wires: Seq[Option[Wire]]): Option[Int] = wires.indices.find(wires(_) match {
+    case Some(w: Wire) => w == wire
+    case _ => false
+  })
 }

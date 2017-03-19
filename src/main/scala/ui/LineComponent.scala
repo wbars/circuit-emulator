@@ -5,7 +5,7 @@ import java.awt.{Color, Dimension => _, Graphics2D => _, Panel => _, _}
 
 import scala.swing._
 
-class LineComponent(from: Pin, to: Pin) extends Panel {
+class LineComponent(from: Pin, to: Pin, var forcedColor: Option[Color] = None) extends Panel {
   peer.setSize(1000, 1000)
   peer.setLocation(0, 0)
   peer.setOpaque(false)
@@ -14,7 +14,7 @@ class LineComponent(from: Pin, to: Pin) extends Panel {
     super.paintComponent(g)
     val g2d = g.create().asInstanceOf[Graphics2D]
     g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-    g2d.setColor(computeColor())
+    g2d.setColor(forcedColor.getOrElse(computeColor()))
     g2d.setStroke(new BasicStroke(4))
     g2d.draw(new Line2D.Double(from.getLocation.x, from.getLocation.y, to.getLocation.x, to.getLocation.y))
     g2d.dispose()

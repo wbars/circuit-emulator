@@ -3,16 +3,39 @@ package ui
 import java.awt.Color
 import java.awt.event.MouseEvent
 import java.awt.geom.Ellipse2D
-import javax.swing.BorderFactory
+import javax.swing.{BorderFactory, SwingWorker}
 
 import core._
 
 import scala.swing.BorderPanel.Position
 import scala.swing.Swing._
+import scala.swing._
 import scala.swing.event._
-import scala.swing.{Label, _}
 
 object Main extends SimpleSwingApplication {
+  def highligthWire(pin: Pin) {
+    def blinkColor(uiWire: UiWire, count: Int = 3, rate: Int = 300, color: Color = Color.blue) = {
+      new SwingWorker[Unit, Unit]() {
+        override def doInBackground() {
+          for (_ <- 1 to count) {
+            uiWire.forcedColor = Some(color)
+            uiWire.repaint()
+            Thread.sleep(rate)
+
+            uiWire.forcedColor = None
+            uiWire.repaint()
+            Thread.sleep(rate)
+          }
+        }
+      }.execute()
+    }
+
+    panel.findWire(pin) match {
+      case Some(uiWire: UiWire) => blinkColor(uiWire)
+      case _ =>
+    }
+  }
+
   val panel: MyPanel = MyPanel()
 
   def registerDraggedEvent(component: Component) {
@@ -84,13 +107,22 @@ object Main extends SimpleSwingApplication {
     case _: OneConst => "ONE"
     case _ => "UNKNOWN"
   }
+
+  def removeWire(pin: Pin): Unit = panel.removeWire(pin)
 }
 
-case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Boolean, var selected: Boolean = false, val pos: Int = 0) extends ShapeComponent(new Ellipse2D.Double(alignment, 0, diameter, diameter)) {
+case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Boolean, var selected: Boolean = false, pos: Int = 0) extends ShapeComponent(new Ellipse2D.Double(alignment, 0, diameter, diameter)) {
+  def free: Boolean = if (input) {
+    uiDevice.device.inputWireFree(pos)
+  } else {
+    uiDevice.device.outputWireFree(pos)
+  }
+
   peer.setMaximumSize(new Dimension(diameter, diameter))
 
   listenTo(mouse.moves)
   listenTo(mouse.clicks)
+
   reactions += {
     case MouseEntered(_, _, _) if !selected =>
       color = Color.white
@@ -100,19 +132,49 @@ case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Bool
       repaint()
     case MouseClicked(_, _, _, _, _) =>
       if (!input) {
-        Main.outputSelected = Some(this)
-        color = Color.white
-        selected = true
+        Main.outputSelected match {
+          case Some(selectedThisPin: Pin) if selectedThisPin == this => resetPinSelection(this)
+          case Some(selectedAnotherPin: Pin) =>
+            resetPinSelection(selectedAnotherPin)
+            selectedAnotherPin.repaint()
+            selectInPin()
+          case _ => selectInPin()
+        }
+
       } else {
         Main.outputSelected match {
-          case Some(outPin: Pin) =>
-            Main.panel.spawn(Wire.create(outPin.uiDevice.device, outPin.pos, uiDevice.device, pos), outPin, this)
-            outPin.color = Color.black
-            outPin.selected = false
-            Main.outputSelected = None
+          case Some(outPin: Pin) => this match {
+            case takenInputPin: Pin if !takenInputPin.free =>
+              Main.highligthWire(takenInputPin)
+              resetPinSelection(outPin)
+            case _ => outPin match {
+              case takenOutPin: Pin if !takenOutPin.free =>
+                Main.removeWire(takenOutPin)
+                selectOutPin(outPin)
+              case _ => selectOutPin(outPin)
+            }
+              repaint()
+          }
           case _ =>
         }
       }
+  }
+
+  private def selectInPin() = {
+    Main.outputSelected = Some(this)
+    color = Color.white
+    selected = true
+  }
+
+  private def selectOutPin(outPin: Pin) = {
+    Main.panel.spawn(Wire.create(outPin.uiDevice.device, outPin.pos, uiDevice.device, pos), outPin, this)
+    resetPinSelection(outPin)
+  }
+
+  private def resetPinSelection(pin: Pin) = {
+    pin.color = Color.black
+    pin.selected = false
+    Main.outputSelected = None
   }
 
   def getLocation: Point = new Point(uiDevice.location.x + (if (input) 0 else uiDevice.width), uiDevice.location.y + location.y)
@@ -185,4 +247,29 @@ case class MyPanel() extends GridBagPanel {
     repaint()
     revalidate()
   }
+
+  def removeWire(pin: Pin) {
+    findWire(pin) match {
+      case Some(uiWire: UiWire) =>
+        _contents -= uiWire
+        val to = uiWire.wire.to.get
+        val from = uiWire.wire.from.get
+        Wire.findWirePos(uiWire.wire, from.outcoming) match {
+          case Some(pos: Int) => from.releaseOutWire(pos)
+          case _ =>
+        }
+
+        Wire.findWirePos(uiWire.wire, to.incoming) match {
+          case Some(pos: Int) => from.releaseInWire(pos)
+          case _ =>
+        }
+        repaint()
+        revalidate()
+      case _ =>
+    }
+  }
+
+  def findWire(pin: Pin): Option[UiWire] = wires.find(w => w.from == pin || w.to == pin)
+
+  def wires: Seq[UiWire] = contents.collect({ case w: UiWire => w })
 }
