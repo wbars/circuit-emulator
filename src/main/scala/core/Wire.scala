@@ -13,7 +13,23 @@ case class Wire(private var _signal: Signal = ZERO, var from: Option[Device] = N
 }
 
 object Wire {
-  def create(from: Device, fromPos: Int, to: Device, toPos: Int): Wire = {
+  def hasCycle(from: Option[Device], to: Option[Device]): Boolean = {
+    def hasCycleIter(device: Option[Device], visitedDevices: Seq[Device]): Boolean = device match {
+      case None => false
+      case Some(d: Device) if visitedDevices.exists(_.eq(d)) => true
+      case Some(d: Device) => !d.outcoming.collect({ case Some(w: Wire) => w })
+        .forall(w => !hasCycleIter(w.to, visitedDevices ++ Seq(d)))
+    }
+
+    val visitedDevices = from match {
+      case Some(d: Device) => Seq(d)
+      case _ => Seq.empty
+    }
+    hasCycleIter(to, visitedDevices)
+  }
+
+  def create(from: Device, to: Device, fromPos: Int = 0, toPos: Int = 0): Wire = {
+    if (Wire.hasCycle(Some(from), Some(to))) throw new IllegalArgumentException
     val wire = new Wire(from = Some(from), to = Some(to))
     to.inWire(wire, toPos)
     from.outWire(wire, fromPos)

@@ -87,6 +87,79 @@ class DeviceSpec extends FlatSpec with Matchers {
     }
   }
 
+  it should "not allow connecting device to itself" in {
+    val and = Device.and()
+    val wire = Wire.empty()
+    and.inWire(wire)
+    assertThrows[IllegalArgumentException] {
+      and.outWire(wire)
+    }
+
+    val and1 = Device.and()
+    val wire1 = Wire.empty()
+    and1.outWire(wire1)
+    assertThrows[IllegalArgumentException] {
+      and1.inWire(wire1, 1)
+    }
+
+    val and2 = Device.and()
+    assertThrows[IllegalArgumentException] {
+      Wire.create(and2, and2)
+    }
+  }
+
+  it should "not allow connecting devices into cycle" in {
+    val repeater1 = Device.repeater()
+    val repeater2 = Device.repeater()
+    val repeater3 = Device.repeater()
+    val wrongRepeater = Device.repeater()
+    Wire.create(from = repeater1, to = repeater2)
+    Wire.create(from = repeater2, to = repeater3)
+    Wire.create(from = repeater3, to = wrongRepeater)
+
+    Wire.hasCycle(Some(wrongRepeater), Some(repeater1)) should be(true)
+    assertThrows[IllegalArgumentException] {
+      Wire.create(from = wrongRepeater, to = repeater1)
+    }
+
+    val wrongWire = Wire.empty()
+    val anotherWrongRepeater = Device.repeater()
+
+    Wire.hasCycle(Some(anotherWrongRepeater), Some(anotherWrongRepeater)) should be(true)
+    anotherWrongRepeater.outWire(wrongWire)
+    assertThrows[IllegalArgumentException] {
+      anotherWrongRepeater.inWire(wrongWire)
+    }
+  }
+
+  it should "allow repeating devices that does no produce loop" in {
+    val one = Device.oneConst()
+    val splitter = Device.split()
+    val and = Device.and()
+
+    Wire.create(one, splitter)
+    Wire.create(splitter, and)
+    Wire.create(splitter, and, 1, 1)
+
+    val out = Wire.empty()
+    and.outWire(out)
+
+    out.signal should be(ONE)
+  }
+
+  it should "produce default signal (all input zeroes) when input wires count < inputSize" in {
+    Seq(Device.repeater(), Device.and(), Device.or(), Device.xor(), Device.split()).foreach(testDefaultSignal)
+
+    val not = Device.not()
+    val out = Wire.empty()
+    not.outWire(out)
+    out.signal should be(ONE)
+  }
+
+  it should "produce canAttachInput/canAttachOutput only if attached wires count is less than size" in {
+    Seq(Device.repeater(), Device.and(), Device.or(), Device.xor(), Device.split(), Device.not()).foreach(testCanAttach)
+  }
+
   "Match table" should "be true for NOT device" in {
     checkOneToOneDevice(Seq(
       (ZERO, ONE),
@@ -166,6 +239,30 @@ class DeviceSpec extends FlatSpec with Matchers {
     })
   }
 
+  it should "be true for full adder" in {
+    val ((a, b), (ha1, ha2)) = halfAdder()
+    val ((_, cin), (s, ha22)) = halfAdder(ha1)
+    val and = Device.or()
+    and.inWire(ha22)
+    and.inWire(ha2, 1)
+    val cout = Wire.empty()
+    and.outWire(cout)
+
+    val truthTable = Seq(
+      ((ZERO, ZERO, ZERO), (ZERO, ZERO)),
+      ((ZERO, ZERO, ONE), (ONE, ZERO)),
+      ((ZERO, ONE, ZERO), (ONE, ZERO)),
+      ((ZERO, ONE, ONE), (ZERO, ONE)),
+      ((ONE, ZERO, ZERO), (ONE, ZERO)),
+      ((ONE, ZERO, ONE), (ZERO, ONE)),
+      ((ONE, ONE, ZERO), (ZERO, ONE)),
+      ((ONE, ONE, ONE), (ONE, ONE))
+    )
+    truthTable.foreach({ case ((input1: Signal, input2: Signal, input3: Signal), (output1: Signal, output2: Signal)) =>
+      checkRow(Seq(a, b, cin), Seq(input1, input2, input3), Seq(s, cout), Seq(output1, output2))
+    })
+  }
+
   "ONE constant" should "be producer of ONE signal for one output" in {
     val oneConst = Device.oneConst()
     oneConst.inputSize() should be(0)
@@ -192,43 +289,10 @@ class DeviceSpec extends FlatSpec with Matchers {
     outWires.indices.foreach(i => outWires(i).signal should be(outSignals(i)))
   }
 
-  it should "be true for full adder" in {
-    val ((a, b), (ha1, ha2)) = halfAdder()
-    val ((_, cin), (s, ha22)) = halfAdder(ha1)
-    val and = Device.or()
-    and.inWire(ha22)
-    and.inWire(ha2, 1)
-    val cout = Wire.empty()
-    and.outWire(cout)
-
-    val truthTable = Seq(
-      ((ZERO, ZERO, ZERO), (ZERO, ZERO)),
-      ((ZERO, ZERO, ONE), (ONE, ZERO)),
-      ((ZERO, ONE, ZERO), (ONE, ZERO)),
-      ((ZERO, ONE, ONE), (ZERO, ONE)),
-      ((ONE, ZERO, ZERO), (ONE, ZERO)),
-      ((ONE, ZERO, ONE), (ZERO, ONE)),
-      ((ONE, ONE, ZERO), (ZERO, ONE)),
-      ((ONE, ONE, ONE), (ONE, ONE))
-    )
-    truthTable.foreach({ case ((input1: Signal, input2: Signal, input3: Signal), (output1: Signal, output2: Signal)) =>
-      checkRow(Seq(a, b, cin), Seq(input1, input2, input3), Seq(s, cout), Seq(output1, output2))
-    })
-  }
-
   def testDefaultSignal(device: Device) {
     val outWires: Seq[Wire] = Seq.fill(device.outputSize())(Wire.empty())
     outWires.indices.foreach(i => device.outWire(outWires(i), i))
     all(outWires.map(_.signal)) should be(ZERO)
-  }
-
-  "All Devices" should "produce default signal (all input zeroes) when input wires count < inputSize" in {
-    Seq(Device.repeater(), Device.and(), Device.or(), Device.xor(), Device.split()).foreach(testDefaultSignal)
-
-    val not = Device.not()
-    val out = Wire.empty()
-    not.outWire(out)
-    out.signal should be(ONE)
   }
 
   def testCanAttach(device: Device) {
@@ -247,10 +311,6 @@ class DeviceSpec extends FlatSpec with Matchers {
     device.canAttachOutputWire should be(false)
     device.releaseOutWire(0)
     device.canAttachOutputWire should be(true)
-  }
-
-  it should "produce canAttachInput/canAttachOutput only if attached wires count is less than size" in {
-    Seq(Device.repeater(), Device.and(), Device.or(), Device.xor(), Device.split(), Device.not()).foreach(testCanAttach)
   }
 
   private def halfAdder(x: Wire = Wire.empty(),

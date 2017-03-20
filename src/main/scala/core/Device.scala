@@ -40,7 +40,7 @@ abstract class Device() {
   }
 
   def outWire(wire: Wire, position: Int) {
-    if (!outputWireFree(position)) throw new IllegalArgumentException
+    if (!outputWireFree(position) || Wire.hasCycle(Some(this), wire.to)) throw new IllegalArgumentException
     outcoming.update(position, Some(wire))
     wire.from = Some(this)
     reloadSignal()
@@ -49,7 +49,7 @@ abstract class Device() {
   def outWire(wire: Wire): Unit = outWire(wire, 0)
 
   def inWire(wire: Wire, position: Int) {
-    if (!inputWireFree(position)) throw new IllegalArgumentException
+    if (!inputWireFree(position) || Wire.hasCycle(wire.from, Some(this))) throw new IllegalArgumentException
     incoming.update(position, Some(wire))
     wire.to = Some(this)
     reloadSignal()

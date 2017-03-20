@@ -148,12 +148,12 @@ case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Bool
               Main.highligthWire(takenInputPin)
               resetPinSelection(outPin)
             case _ => outPin match {
+              case _ if Wire.hasCycle(Some(outPin.uiDevice.device), Some(uiDevice.device)) =>
               case takenOutPin: Pin if !takenOutPin.free =>
                 Main.removeWire(takenOutPin)
                 selectOutPin(outPin)
               case _ => selectOutPin(outPin)
             }
-              repaint()
           }
           case _ =>
         }
@@ -167,7 +167,7 @@ case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Bool
   }
 
   private def selectOutPin(outPin: Pin) = {
-    Main.panel.spawn(Wire.create(outPin.uiDevice.device, outPin.pos, uiDevice.device, pos), outPin, this)
+    Main.panel.spawn(Wire.create(outPin.uiDevice.device, uiDevice.device, outPin.pos, pos), outPin, this)
     resetPinSelection(outPin)
   }
 
