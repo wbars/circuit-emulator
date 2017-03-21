@@ -112,6 +112,7 @@ object Main extends SimpleSwingApplication {
 }
 
 case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Boolean, var selected: Boolean = false, pos: Int = 0) extends ShapeComponent(new Ellipse2D.Double(alignment, 0, diameter, diameter)) {
+  def radius: Int = diameter / 2
   def free: Boolean = if (input) {
     uiDevice.device.inputWireFree(pos)
   } else {

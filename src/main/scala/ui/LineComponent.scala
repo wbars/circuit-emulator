@@ -16,7 +16,7 @@ class LineComponent(from: Pin, to: Pin, var forcedColor: Option[Color] = None) e
     g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
     g2d.setColor(forcedColor.getOrElse(computeColor()))
     g2d.setStroke(new BasicStroke(4))
-    g2d.draw(new Line2D.Double(from.getLocation.x, from.getLocation.y, to.getLocation.x, to.getLocation.y))
+    g2d.draw(new Line2D.Double(from.getLocation.x - from.radius, from.getLocation.y + from.radius, to.getLocation.x + to.radius, to.getLocation.y + to.radius))
     g2d.dispose()
   }
 
