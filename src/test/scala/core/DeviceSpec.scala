@@ -148,7 +148,7 @@ class DeviceSpec extends FlatSpec with Matchers {
   }
 
   it should "produce default signal (all input zeroes) when input wires count < inputSize" in {
-    Seq(Device.repeater(), Device.and(), Device.or(), Device.xor(), Device.split()).foreach(testDefaultSignal)
+    Seq(Device.repeater(), Device.and(), Device.or(), Device.xor(), Device.split(), Device.switch()).foreach(testDefaultSignal)
 
     val not = Device.not()
     val out = Wire.empty()
@@ -157,7 +157,7 @@ class DeviceSpec extends FlatSpec with Matchers {
   }
 
   it should "produce canAttachInput/canAttachOutput only if attached wires count is less than size" in {
-    Seq(Device.repeater(), Device.and(), Device.or(), Device.xor(), Device.split(), Device.not()).foreach(testCanAttach)
+    Seq(Device.repeater(), Device.and(), Device.or(), Device.xor(), Device.split(), Device.not(), Device.switch()).foreach(testCanAttach)
   }
 
   "Match table" should "be true for NOT device" in {
@@ -281,6 +281,36 @@ class DeviceSpec extends FlatSpec with Matchers {
     val outWire = Wire.empty()
     oneConst.outWire(outWire)
     outWire.signal should be(ZERO)
+  }
+
+  "Toggle switch" should "change value by toggling" in {
+    val switch = Device.switch()
+    val outWire = Wire.empty()
+    switch.outWire(outWire)
+
+    outWire.signal should be(ZERO)
+    switch.toggle()
+    outWire.signal should be(ONE)
+    switch.toggle()
+    outWire.signal should be(ZERO)
+  }
+
+  "Bulb" should "be simple consumer" in {
+    val bulb = Device.bulb()
+    val one = Device.oneConst()
+    bulb.active should be(false)
+
+    val wire = Wire.create(one, bulb)
+    bulb.active should be(true)
+    wire.remove()
+
+    val zero = Device.zeroConst()
+    val wire1 = Wire.create(zero, bulb)
+    bulb.active should be(false)
+    wire1.remove()
+
+    Wire.create(one, bulb)
+    bulb.active should be(true)
   }
 
 

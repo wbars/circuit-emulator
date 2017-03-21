@@ -102,6 +102,10 @@ abstract class UnaryProducer() extends Device() {
   override def outputSize() = 1
 }
 
+abstract class Consumer() extends Device() {
+  override def outputSize() = 0
+}
+
 case class ZeroConst() extends UnaryProducer() {
   override def computeSignal(): Signal = ZERO
 }
@@ -161,7 +165,34 @@ case class Split() extends Device() {
   }
 }
 
+case class Switch() extends UnaryProducer {
+  var value: Signal = ZERO
+
+  override def computeSignal(): Signal = value
+
+  def toggle(): Unit = {
+    value = !value
+    reloadSignal()
+  }
+}
+
+case class Bulb() extends Consumer {
+
+  override def inputSize(): Int = 1
+
+  override def computeSignal(): Signal = incoming.head match {
+    case Some(wire: Wire) => wire.signal
+    case _ => ZERO
+  }
+
+  def active: Boolean = computeSignal() == ONE
+}
+
 object Device {
+  def bulb(): Bulb = Bulb()
+
+  def switch(): Switch = Switch()
+
   def repeater(): Device = Repeater()
 
   def and(): Device = And()

@@ -60,28 +60,34 @@ object Main extends SimpleSwingApplication {
     menuBar = new MenuBar {
       contents += new Menu("Elements") {
         contents += new MenuItem(Action("Repeater") {
-          panel.spawn(Device.repeater())
+          panel.spawn(new UiDevice(Device.repeater()))
         })
         contents += new MenuItem(Action("And") {
-          panel.spawn(Device.and())
+          panel.spawn(new UiDevice(Device.and()))
         })
         contents += new MenuItem(Action("Or") {
-          panel.spawn(Device.or())
+          panel.spawn(new UiDevice(Device.or()))
         })
         contents += new MenuItem(Action("Xor") {
-          panel.spawn(Device.xor())
+          panel.spawn(new UiDevice(Device.xor()))
         })
         contents += new MenuItem(Action("Not") {
-          panel.spawn(Device.not())
+          panel.spawn(new UiDevice(Device.not()))
         })
         contents += new MenuItem(Action("Split") {
-          panel.spawn(Device.split())
+          panel.spawn(new UiDevice(Device.split()))
         })
         contents += new MenuItem(Action("ZERO") {
-          panel.spawn(Device.zeroConst())
+          panel.spawn(new UiDevice(Device.zeroConst()))
         })
         contents += new MenuItem(Action("ONE") {
-          panel.spawn(Device.oneConst())
+          panel.spawn(new UiDevice(Device.oneConst()))
+        })
+        contents += new MenuItem(Action("Switch") {
+          panel.spawn(new UiToggleSwitch(Device.switch()))
+        })
+        contents += new MenuItem(Action("Bulb") {
+          panel.spawn(new UiBulb(Device.bulb()))
         })
       }
     }
@@ -105,6 +111,8 @@ object Main extends SimpleSwingApplication {
     case _: Split => "Split"
     case _: ZeroConst => "ZERO"
     case _: OneConst => "ONE"
+    case _: Switch => "Switch"
+    case _: Bulb => "Bulb"
     case _ => "UNKNOWN"
   }
 
@@ -113,6 +121,7 @@ object Main extends SimpleSwingApplication {
 
 case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Boolean, var selected: Boolean = false, pos: Int = 0) extends ShapeComponent(new Ellipse2D.Double(alignment, 0, diameter, diameter)) {
   def radius: Int = diameter / 2
+
   def free: Boolean = if (input) {
     uiDevice.device.inputWireFree(pos)
   } else {
@@ -215,9 +224,9 @@ class UiDevice(val device: Device) extends BorderPanel() {
 
   val label = new Label(Main.getText(device)) {
     horizontalAlignment = Alignment.Center
-    foreground = Color.blue
+    foreground = Color.black
     opaque = true
-    border = BorderFactory.createLineBorder(Color.BLACK)
+    border = BorderFactory.createLineBorder(Color.black)
   }
 
   val inputPins: Seq[Pin] = initPins(device.inputSize(), 0, input = true)
@@ -233,23 +242,39 @@ class UiDevice(val device: Device) extends BorderPanel() {
   Main.registerDraggedEvent(this)
 }
 
+class UiToggleSwitch(val switch: Switch) extends UiDevice(device = switch) {
+  reactions += {
+    case _: MouseClicked =>
+      switch.toggle()
+      label.foreground = if (switch.value == ONE) Color.red else Color.black
+      Main.panel.refresh()
+  }
+}
+
+class UiBulb(val bulb: Bulb) extends UiDevice(device = bulb) {
+  def updateColor(): Unit = label.foreground = if (bulb.active) Color.red else Color.black //hack
+}
+
 
 case class MyPanel() extends GridBagPanel {
-  peer.setLayout(null)
-
-  def spawn(device: Device) {
-    val uiDevice = new UiDevice(device)
-    uiDevice.peer.setLocation(0, 0)
-    _contents += uiDevice
+  def refresh(): Unit = {
+    builbs.foreach(_.updateColor())
     repaint()
     revalidate()
+  }
+
+  peer.setLayout(null)
+
+  def spawn(uiDevice: UiDevice) {
+    uiDevice.peer.setLocation(0, 0)
+    _contents += uiDevice
+    refresh()
   }
 
   def spawn(wire: Wire, from: Pin, to: Pin): Unit = {
     val uiWire = UiWire(wire = wire, from = from, to = to)
     _contents += uiWire
-    repaint()
-    revalidate()
+    refresh()
   }
 
   def removeWire(pin: Pin) {
@@ -257,8 +282,7 @@ case class MyPanel() extends GridBagPanel {
       case Some(uiWire: UiWire) =>
         _contents -= uiWire
         uiWire.wire.remove()
-        repaint()
-        revalidate()
+        refresh()
       case _ =>
     }
   }
@@ -266,4 +290,6 @@ case class MyPanel() extends GridBagPanel {
   def findWire(pin: Pin): Option[UiWire] = wires.find(w => w.from == pin || w.to == pin)
 
   def wires: Seq[UiWire] = contents.collect({ case w: UiWire => w })
+
+  def builbs: Seq[UiBulb] = contents.collect({ case w: UiBulb => w })
 }
