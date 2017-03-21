@@ -1,6 +1,16 @@
 package core
 
 case class Wire(private var _signal: Signal = ZERO, var from: Option[Device] = None, var to: Option[Device] = None) {
+  def remove(): Unit = from match {
+    case Some(f: Device) =>
+      Wire.applyByPos(this, f, f.outcoming, (device: Device, pos: Int) => device.releaseOutWire(pos))
+      to match {
+        case Some(t: Device) => Wire.applyByPos(this, t, t.incoming, (device: Device, pos: Int) => device.releaseInWire(pos))
+        case _ => throw new IllegalStateException
+      }
+    case _ =>
+  }
+
   def sendSignal(signal: Signal) {
     _signal = signal
     to match {
@@ -13,6 +23,13 @@ case class Wire(private var _signal: Signal = ZERO, var from: Option[Device] = N
 }
 
 object Wire {
+  def applyByPos(wire: Wire, device: Device, wires: Seq[Option[Wire]], f: (Device, Int) => Unit) {
+    Wire.findWirePos(wire, wires) match {
+      case Some(pos: Int) => f.apply(device, pos)
+      case _ =>
+    }
+  }
+
   def hasCycle(from: Option[Device], to: Option[Device]): Boolean = {
     def hasCycleIter(device: Option[Device], visitedDevices: Seq[Device]): Boolean = device match {
       case None => false
@@ -41,7 +58,7 @@ object Wire {
   def empty(): Wire = new Wire()
 
   def findWirePos(wire: Wire, wires: Seq[Option[Wire]]): Option[Int] = wires.indices.find(wires(_) match {
-    case Some(w: Wire) => w == wire
+    case Some(w: Wire) => w.eq(wire)
     case _ => false
   })
 }

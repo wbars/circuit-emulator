@@ -145,7 +145,10 @@ case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Bool
         Main.outputSelected match {
           case Some(outPin: Pin) => this match {
             case takenInputPin: Pin if !takenInputPin.free =>
-              Main.highligthWire(takenInputPin)
+              Main.panel.findWire(takenInputPin) match {
+                case Some(UiWire(_, fromPin: Pin, toPin: Pin)) if fromPin.eq(outPin) && toPin.eq(takenInputPin) => Main.removeWire(takenInputPin)
+                case _ => Main.highligthWire(takenInputPin)
+              }
               resetPinSelection(outPin)
             case _ => outPin match {
               case _ if Wire.hasCycle(Some(outPin.uiDevice.device), Some(uiDevice.device)) =>
@@ -181,7 +184,7 @@ case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Bool
 }
 
 
-class UiWire(val wire: Wire, var from: Pin, var to: Pin) extends LineComponent(from, to) {
+case class UiWire(wire: Wire, var from: Pin, var to: Pin) extends LineComponent(from, to) {
   override def computeColor(): Color = {
     if (wire.signal == ONE) return Color.red
     Color.black
@@ -242,7 +245,7 @@ case class MyPanel() extends GridBagPanel {
   }
 
   def spawn(wire: Wire, from: Pin, to: Pin): Unit = {
-    val uiWire = new UiWire(wire = wire, from = from, to = to)
+    val uiWire = UiWire(wire = wire, from = from, to = to)
     _contents += uiWire
     repaint()
     revalidate()
@@ -252,17 +255,7 @@ case class MyPanel() extends GridBagPanel {
     findWire(pin) match {
       case Some(uiWire: UiWire) =>
         _contents -= uiWire
-        val to = uiWire.wire.to.get
-        val from = uiWire.wire.from.get
-        Wire.findWirePos(uiWire.wire, from.outcoming) match {
-          case Some(pos: Int) => from.releaseOutWire(pos)
-          case _ =>
-        }
-
-        Wire.findWirePos(uiWire.wire, to.incoming) match {
-          case Some(pos: Int) => from.releaseInWire(pos)
-          case _ =>
-        }
+        uiWire.wire.remove()
         repaint()
         revalidate()
       case _ =>
