@@ -1,19 +1,18 @@
 package ui
 
-import java.awt.Color
 import java.awt.event.MouseEvent
 import java.awt.geom.Ellipse2D
+import java.awt.{Color, Font}
 import javax.swing.{BorderFactory, SwingWorker}
 
 import core._
 
-import scala.swing.BorderPanel.Position
 import scala.swing.Swing._
 import scala.swing._
 import scala.swing.event._
 
 object Main extends SimpleSwingApplication {
-  def highligthWire(pin: Pin) {
+  def highlightWire(pin: Pin) {
     def blinkColor(uiWire: UiWire, count: Int = 3, rate: Int = 300, color: Color = Color.blue) = {
       new SwingWorker[Unit, Unit]() {
         override def doInBackground() {
@@ -55,7 +54,7 @@ object Main extends SimpleSwingApplication {
   }
 
   def top = new MainFrame {
-    title = "SwingApp"
+    title = "Circuit emulator"
 
     menuBar = new MenuBar {
       contents += new Menu("Elements") {
@@ -93,9 +92,9 @@ object Main extends SimpleSwingApplication {
     }
     contents = panel
 
-    peer.setSize(400, 300)
     peer.setVisible(true)
     peer.setLocationRelativeTo(null)
+    peer.setExtendedState(java.awt.Frame.MAXIMIZED_BOTH)
   }
 
   var outputSelected: Option[Pin] = None
@@ -119,7 +118,7 @@ object Main extends SimpleSwingApplication {
   def removeWire(pin: Pin): Unit = panel.removeWire(pin)
 }
 
-case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Boolean, var selected: Boolean = false, pos: Int = 0) extends ShapeComponent(new Ellipse2D.Double(alignment, 0, diameter, diameter)) {
+case class Pin(uiDevice: UiDevice, override val width: Double, diameter: Int, override val input: Boolean, var selected: Boolean = false, pos: Int = 0) extends EllipseComponent(new Ellipse2D.Double(0, 0, diameter, diameter), width, input = input) {
   def radius: Int = diameter / 2
 
   def free: Boolean = if (input) {
@@ -128,7 +127,7 @@ case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Bool
     uiDevice.device.outputWireFree(pos)
   }
 
-  peer.setMaximumSize(new Dimension(diameter, diameter))
+  peer.setMaximumSize(new Dimension(diameter + lineLength, diameter))
 
   listenTo(mouse.moves)
   listenTo(mouse.clicks)
@@ -157,7 +156,7 @@ case class Pin(uiDevice: UiDevice, alignment: Double, diameter: Int, input: Bool
             case takenInputPin: Pin if !takenInputPin.free =>
               Main.panel.findWire(takenInputPin) match {
                 case Some(UiWire(_, fromPin: Pin, toPin: Pin)) if fromPin.eq(outPin) && toPin.eq(takenInputPin) => Main.removeWire(takenInputPin)
-                case _ => Main.highligthWire(takenInputPin)
+                case _ => Main.highlightWire(takenInputPin)
               }
               resetPinSelection(outPin)
             case _ => outPin match {
@@ -201,43 +200,61 @@ case class UiWire(wire: Wire, var from: Pin, var to: Pin) extends LineComponent(
   }
 }
 
-class UiDevice(val device: Device) extends BorderPanel() {
-  val defaultDiameter = 10
-  val (width, height) = (100, 70)
-  border = BorderFactory.createLineBorder(Color.BLACK)
+class PinPanel(size: Int, input: Boolean, width: Int, uiDevice: UiDevice) extends BoxPanel(Orientation.Vertical) {
+  peer.setOpaque(false)
+
+  private val defaultDiameter = 10
+
+  private def initPins(size: Int, input: Boolean): Seq[Pin] = Range(0, size).map(i => Pin(uiDevice, width, defaultDiameter, input, pos = i))
+
+  def computeWidth: Int = if (size > 0) width else 0
+
+  initPins(size, input).foreach(pin => {
+    contents += VGlue
+    contents += pin
+  })
+  contents += VGlue
+}
+
+class UiDevice(val device: Device) extends BoxPanel(Orientation.Horizontal) {
+  def getName: String = label.textField.text
+
+  val pinPanelWidth = 30
+  val labelWidth = 60
+
+  val inputPinsPanel = new PinPanel(device.inputSize(), input = true, width = pinPanelWidth, uiDevice = this)
+  val outputPinsPanel = new PinPanel(device.outputSize(), input = false, width = pinPanelWidth, uiDevice = this)
+
+  val (width, height) = (labelWidth + inputPinsPanel.computeWidth + outputPinsPanel.computeWidth, 70)
   peer.setSize(width, height)
+  peer.setOpaque(false)
 
-  override def size: Dimension = new Dimension(width, height)
-
-  private def initPinsPanel(size: Int, pins: Seq[Pin]): BoxPanel =
-    new BoxPanel(Orientation.Vertical) {
-      border = BorderFactory.createLineBorder(Color.BLACK)
-      pins.foreach(pin => {
-        contents += VGlue
-        contents += pin
-      })
-      contents += VGlue
-    }
-
-  private def initPins(size: Int, alignment: Int, input: Boolean): Seq[Pin] = Range(0, size).map(i => Pin(this, alignment, defaultDiameter, input, pos = i))
-
-
-  val label = new Label(Main.getText(device)) {
-    horizontalAlignment = Alignment.Center
-    foreground = Color.black
-    opaque = true
+  val label = new BoxPanel(Orientation.Vertical) {
+    val fontSize = 12
+    peer.setMaximumSize(labelWidth, height)
     border = BorderFactory.createLineBorder(Color.black)
+
+    val textField = new TextField(Main.getText(device)) {
+      horizontalAlignment = Alignment.Center
+      background = null
+      foreground = Color.black
+      border = null
+      opaque = true
+      xLayoutAlignment = java.awt.Component.CENTER_ALIGNMENT
+      yLayoutAlignment = java.awt.Component.CENTER_ALIGNMENT
+      maximumSize = new Dimension(width, fontSize)
+      font = new Font("TimesNewRoman", Font.PLAIN, fontSize)
+    }
+    contents += VGlue
+    contents += textField
+    contents += VGlue
   }
 
-  val inputPins: Seq[Pin] = initPins(device.inputSize(), 0, input = true)
-  val outputPins: Seq[Pin] = initPins(device.outputSize(), width - defaultDiameter, input = false)
+  private def tryAddPanel(pinPanel: PinPanel) = if (pinPanel.computeWidth > 0) contents += pinPanel
 
-  private val inputPinsPanel: BoxPanel = initPinsPanel(device.inputSize(), inputPins)
-  private val outPinsPanel: BoxPanel = initPinsPanel(device.inputSize(), outputPins)
-
-  layout(label) = Position.Center
-  layout(inputPinsPanel) = Position.West
-  layout(outPinsPanel) = Position.East
+  tryAddPanel(inputPinsPanel)
+  contents += label
+  tryAddPanel(outputPinsPanel)
 
   Main.registerDraggedEvent(this)
 }
@@ -264,6 +281,7 @@ case class MyPanel() extends GridBagPanel {
   }
 
   peer.setLayout(null)
+  peer.setOpaque(false)
 
   def spawn(uiDevice: UiDevice) {
     uiDevice.peer.setLocation(0, 0)
