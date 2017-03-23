@@ -326,21 +326,25 @@ class DeviceSpec extends FlatSpec with Matchers {
   }
 
   def testCanAttach(device: Device) {
-    device.incoming.indices.foreach(i => {
+    if (device.incoming.nonEmpty) {
+      device.incoming.indices.foreach(i => {
+        device.canAttachInputWire should be(true)
+        device.inWire(Wire.empty(), i)
+      })
+      device.canAttachInputWire should be(false)
+      device.releaseInWire(0)
       device.canAttachInputWire should be(true)
-      device.inWire(Wire.empty(), i)
-    })
-    device.canAttachInputWire should be(false)
-    device.releaseInWire(0)
-    device.canAttachInputWire should be(true)
+    }
 
-    device.outcoming.indices.foreach(i => {
+    if (device.outcoming.nonEmpty) {
+      device.outcoming.indices.foreach(i => {
+        device.canAttachOutputWire should be(true)
+        device.outWire(Wire.empty(), i)
+      })
+      device.canAttachOutputWire should be(false)
+      device.releaseOutWire(0)
       device.canAttachOutputWire should be(true)
-      device.outWire(Wire.empty(), i)
-    })
-    device.canAttachOutputWire should be(false)
-    device.releaseOutWire(0)
-    device.canAttachOutputWire should be(true)
+    }
   }
 
   private def halfAdder(x: Wire = Wire.empty(),
