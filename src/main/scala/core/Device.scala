@@ -165,7 +165,11 @@ case class Split() extends Device() {
   }
 }
 
-case class Switch() extends UnaryProducer {
+case class Switch(var name: String = "switch") extends UnaryProducer {
+  def setName(name: String): Unit = this.name = name
+
+  def sendSignal(signal: Signal): Unit = if (signal != value) toggle()
+
   var value: Signal = ZERO
 
   override def computeSignal(): Signal = value
@@ -191,7 +195,7 @@ case class Bulb() extends Consumer {
 object Device {
   def bulb(): Bulb = Bulb()
 
-  def switch(): Switch = Switch()
+  def switch(name: String = "switch"): Switch = Switch(name)
 
   def repeater(): Device = Repeater()
 

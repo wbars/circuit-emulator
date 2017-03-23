@@ -53,10 +53,57 @@ object Main extends SimpleSwingApplication {
     }
   }
 
+  val analysisPanel = new BoxPanel(Orientation.Vertical) {
+    def setContent(truthTable: Table, formulas: Component) {
+      tablePanel.contents.clear()
+      tablePanel.contents += HGlue
+      tablePanel.contents += new ScrollPane(truthTable)
+      tablePanel.contents += HGlue
+
+      formulaTable.contents.clear()
+      formulaTable.contents += VGlue
+      formulaTable.contents += formulas
+      formulaTable.contents += VGlue
+    }
+
+    peer.setBackground(Color.white)
+    border = BorderFactory.createLineBorder(Color.black)
+    contents += new BoxPanel(Orientation.Horizontal) {
+      peer.setBackground(Color.white)
+      border = BorderFactory.createLineBorder(Color.black)
+      contents += HGlue
+      contents += new Label("Analysis")
+      contents += HGlue
+    }
+    val tablePanel = new BoxPanel(Orientation.Horizontal)
+    val formulaTable = new BoxPanel(Orientation.Vertical) {
+      peer.setBackground(Color.white)
+    }
+    contents += tablePanel
+    contents += VGlue
+    contents += formulaTable
+    peer.setMinimumSize(300, 300)
+  }
+
+  val splitPane = new SplitPane(Orientation.Vertical, panel, analysisPanel) {
+    peer.setBackground(Color.white)
+    resizeWeight = 0.8
+  }
+
   def top = new MainFrame {
     title = "Circuit emulator"
 
-    menuBar = new MenuBar {
+    menuBar = createMenu()
+    contents = splitPane
+
+    peer.setVisible(true)
+    peer.setLocationRelativeTo(null)
+    peer.setExtendedState(java.awt.Frame.MAXIMIZED_BOTH)
+    peer.setBackground(Color.white)
+  }
+
+  private def createMenu() = {
+    new MenuBar {
       contents += new Menu("Elements") {
         contents += new MenuItem(Action("Repeater") {
           panel.spawn(new UiDevice(Device.repeater()))
@@ -89,12 +136,17 @@ object Main extends SimpleSwingApplication {
           panel.spawn(new UiBulb(Device.bulb()))
         })
       }
-    }
-    contents = panel
 
-    peer.setVisible(true)
-    peer.setLocationRelativeTo(null)
-    peer.setExtendedState(java.awt.Frame.MAXIMIZED_BOTH)
+      contents += new Menu("Analysis") {
+        contents += new MenuItem(Action("Analyse") {
+          panel.analyse()
+          splitPane.resizeWeight = 0.8
+
+          revalidate()
+          repaint()
+        })
+      }
+    }
   }
 
   var outputSelected: Option[Pin] = None
@@ -119,6 +171,8 @@ object Main extends SimpleSwingApplication {
 }
 
 case class Pin(uiDevice: UiDevice, override val width: Double, diameter: Int, override val input: Boolean, var selected: Boolean = false, pos: Int = 0) extends EllipseComponent(new Ellipse2D.Double(0, 0, diameter, diameter), width, input = input) {
+  peer.setBackground(Color.white)
+
   def radius: Int = diameter / 2
 
   def free: Boolean = if (input) {
@@ -202,6 +256,7 @@ case class UiWire(wire: Wire, var from: Pin, var to: Pin) extends LineComponent(
 
 class PinPanel(size: Int, input: Boolean, width: Int, uiDevice: UiDevice) extends BoxPanel(Orientation.Vertical) {
   peer.setOpaque(false)
+  peer.setBackground(Color.white)
 
   private val defaultDiameter = 10
 
@@ -228,9 +283,11 @@ class UiDevice(val device: Device) extends BoxPanel(Orientation.Horizontal) {
   val (width, height) = (labelWidth + inputPinsPanel.computeWidth + outputPinsPanel.computeWidth, 70)
   peer.setSize(width, height)
   peer.setOpaque(false)
+  peer.setBackground(Color.white)
 
   val label = new BoxPanel(Orientation.Vertical) {
     val fontSize = 12
+    peer.setBackground(Color.white)
     peer.setMaximumSize(labelWidth, height)
     border = BorderFactory.createLineBorder(Color.black)
 
@@ -244,6 +301,13 @@ class UiDevice(val device: Device) extends BoxPanel(Orientation.Horizontal) {
       yLayoutAlignment = java.awt.Component.CENTER_ALIGNMENT
       maximumSize = new Dimension(width, fontSize)
       font = new Font("TimesNewRoman", Font.PLAIN, fontSize)
+      listenTo(keys)
+      reactions += {
+        case _: KeyEvent => device match {
+          case switch: Switch => switch.setName(text)
+          case _ =>
+        }
+      }
     }
     contents += VGlue
     contents += textField
@@ -274,12 +338,46 @@ class UiBulb(val bulb: Bulb) extends UiDevice(device = bulb) {
 
 
 case class MyPanel() extends GridBagPanel {
+  val cellSize = 30
+
+
+  def formulaTable(formulas: Seq[(UiBulb, String)]): Panel = new BoxPanel(Orientation.Vertical) {
+    peer.setBackground(Color.white)
+    formulas.foreach(t => {
+      contents += VGlue
+      contents += new Label(t._1.getName + ": " + t._2)
+    })
+    contents += VGlue
+  }
+
+  def buildTable(analysisResult: Seq[(Seq[(Switch, Signal)], Seq[(Bulb, Signal)])],
+                 input: Seq[Switch],
+                 outputs: Seq[Bulb],
+                 formulas: Seq[(UiBulb, String)]) {
+    Main.analysisPanel.setContent(truthTable(analysisResult), formulaTable(formulas))
+  }
+
+  private def truthTable(analysisResult: Seq[(Seq[(Switch, Signal)], Seq[(Bulb, Signal)])]) = {
+    val columnNames: Seq[String] = switches.map(_.getName) ++ builbs.map(_.getName)
+    val data: Array[Array[Any]] = analysisResult.map(t => (t._1.map(_._2.display()) ++ t._2.map(_._2.display())).toArray[Any]).toArray
+    new Table(data, columnNames) {
+      peer.setSize(columnNames.size * cellSize, data.length * cellSize)
+    }
+  }
+
+  def analyse() {
+    val input = switches.map(_.switch)
+    val outputs = builbs.map(_.bulb)
+    buildTable(DeviceAnalyser.analyse(input, outputs), input, outputs, builbs.map(uiBulb => (uiBulb, DeviceAnalyser.formula(uiBulb.bulb))))
+  }
+
   def refresh(): Unit = {
     builbs.foreach(_.updateColor())
     repaint()
     revalidate()
   }
 
+  peer.setBackground(Color.white)
   peer.setLayout(null)
   peer.setOpaque(false)
 
@@ -310,4 +408,6 @@ case class MyPanel() extends GridBagPanel {
   def wires: Seq[UiWire] = contents.collect({ case w: UiWire => w })
 
   def builbs: Seq[UiBulb] = contents.collect({ case w: UiBulb => w })
+
+  def switches: Seq[UiToggleSwitch] = contents.collect({ case w: UiToggleSwitch => w })
 }
