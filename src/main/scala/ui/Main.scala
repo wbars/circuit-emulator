@@ -54,6 +54,38 @@ object Main extends SimpleSwingApplication {
   }
 
   val analysisPanel = new BoxPanel(Orientation.Vertical) {
+    val cellSize = 30
+
+    def formulaTable(formulas: Seq[(UiBulb, String)]): Panel = new BoxPanel(Orientation.Vertical) {
+      peer.setBackground(Color.white)
+      formulas.foreach(t => {
+        contents += VGlue
+        contents += new Label(t._1.getName + ": " + t._2)
+      })
+      contents += VGlue
+    }
+
+    def buildTable(analysisResult: Seq[(Seq[(Switch, Signal)], Seq[(Bulb, Signal)])],
+                   input: Seq[Switch],
+                   outputs: Seq[Bulb],
+                   formulas: Seq[(UiBulb, String)]) {
+      setContent(truthTable(analysisResult), formulaTable(formulas))
+    }
+
+    private def truthTable(analysisResult: Seq[(Seq[(Switch, Signal)], Seq[(Bulb, Signal)])]) = {
+      val columnNames: Seq[String] = Main.panel.switches.map(_.getName) ++ Main.panel.builbs.map(_.getName)
+      val data: Array[Array[Any]] = analysisResult.map(t => (t._1.map(_._2.display()) ++ t._2.map(_._2.display())).toArray[Any]).toArray
+      new Table(data, columnNames) {
+        peer.setSize(columnNames.size * cellSize, data.length * cellSize)
+      }
+    }
+
+    def analyse() {
+      val input = Main.panel.switches.map(_.switch)
+      val outputs = Main.panel.builbs.map(_.bulb)
+      buildTable(DeviceAnalyser.analyse(input, outputs), input, outputs, Main.panel.builbs.map(uiBulb => (uiBulb, DeviceAnalyser.formula(uiBulb.bulb))))
+    }
+
     def setContent(truthTable: Table, formulas: Component) {
       tablePanel.contents.clear()
       tablePanel.contents += HGlue
@@ -139,7 +171,7 @@ object Main extends SimpleSwingApplication {
 
       contents += new Menu("Analysis") {
         contents += new MenuItem(Action("Analyse") {
-          panel.analyse()
+          analysisPanel.analyse()
           splitPane.resizeWeight = 0.8
 
           revalidate()
@@ -271,7 +303,7 @@ class PinPanel(size: Int, input: Boolean, width: Int, uiDevice: UiDevice) extend
   contents += VGlue
 }
 
-class UiDevice(val device: Device) extends BoxPanel(Orientation.Horizontal) {
+class UiDevice(val device: Device, val nameEditable: Boolean = false) extends BoxPanel(Orientation.Horizontal) {
   def getName: String = label.textField.text
 
   val pinPanelWidth = 30
@@ -292,6 +324,7 @@ class UiDevice(val device: Device) extends BoxPanel(Orientation.Horizontal) {
     border = BorderFactory.createLineBorder(Color.black)
 
     val textField = new TextField(Main.getText(device)) {
+      editable = nameEditable
       horizontalAlignment = Alignment.Center
       background = null
       foreground = Color.black
@@ -323,11 +356,11 @@ class UiDevice(val device: Device) extends BoxPanel(Orientation.Horizontal) {
   Main.registerDraggedEvent(this)
 }
 
-class UiToggleSwitch(val switch: Switch) extends UiDevice(device = switch) {
+class UiToggleSwitch(val switch: Switch) extends UiDevice(device = switch, nameEditable = true) {
   reactions += {
     case _: MouseClicked =>
       switch.toggle()
-      label.foreground = if (switch.value == ONE) Color.red else Color.black
+      label.textField.foreground = if (switch.value == ONE) Color.red else Color.black
       Main.panel.refresh()
   }
 }
@@ -338,39 +371,6 @@ class UiBulb(val bulb: Bulb) extends UiDevice(device = bulb) {
 
 
 case class MyPanel() extends GridBagPanel {
-  val cellSize = 30
-
-
-  def formulaTable(formulas: Seq[(UiBulb, String)]): Panel = new BoxPanel(Orientation.Vertical) {
-    peer.setBackground(Color.white)
-    formulas.foreach(t => {
-      contents += VGlue
-      contents += new Label(t._1.getName + ": " + t._2)
-    })
-    contents += VGlue
-  }
-
-  def buildTable(analysisResult: Seq[(Seq[(Switch, Signal)], Seq[(Bulb, Signal)])],
-                 input: Seq[Switch],
-                 outputs: Seq[Bulb],
-                 formulas: Seq[(UiBulb, String)]) {
-    Main.analysisPanel.setContent(truthTable(analysisResult), formulaTable(formulas))
-  }
-
-  private def truthTable(analysisResult: Seq[(Seq[(Switch, Signal)], Seq[(Bulb, Signal)])]) = {
-    val columnNames: Seq[String] = switches.map(_.getName) ++ builbs.map(_.getName)
-    val data: Array[Array[Any]] = analysisResult.map(t => (t._1.map(_._2.display()) ++ t._2.map(_._2.display())).toArray[Any]).toArray
-    new Table(data, columnNames) {
-      peer.setSize(columnNames.size * cellSize, data.length * cellSize)
-    }
-  }
-
-  def analyse() {
-    val input = switches.map(_.switch)
-    val outputs = builbs.map(_.bulb)
-    buildTable(DeviceAnalyser.analyse(input, outputs), input, outputs, builbs.map(uiBulb => (uiBulb, DeviceAnalyser.formula(uiBulb.bulb))))
-  }
-
   def refresh(): Unit = {
     builbs.foreach(_.updateColor())
     repaint()
