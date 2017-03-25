@@ -44,7 +44,7 @@ object DeviceAnalyser {
     case or: Or => concatBinaryOp(or, "||", inner = inner)
     case xor: Xor => concatBinaryOp(xor, "⊕", inner = inner)
     case not: Not => "!" + formulaWire(not.incoming.head, inner = true)
-    case _: Split => formulaWire(device.incoming.head)
+    case _: Split => formulaWire(device.incoming.head, inner = inner)
     case _ => throw new IllegalArgumentException
   }
 }

@@ -127,4 +127,34 @@ class DeviceAnalyserSpec extends FlatSpec with Matchers {
     DeviceAnalyser.formula(bulb1) should be("!(a || 1)")
     DeviceAnalyser.formula(bulb2) should be("(b ⊕ 0) && a")
   }
+
+  it should "keep parens value for split and repeater devices" in {
+    val a = Device.switch("a")
+    val b = Device.switch("b")
+    val c = Device.switch("c")
+    val or = Device.or()
+    val and = Device.and()
+    val bulb = Device.bulb()
+    Wire.create(a, or)
+    Wire.create(b, or, toPos = 1)
+    val orAndWire = Wire.create(or, and)
+    Wire.create(c, and, toPos = 1)
+    Wire.create(and, bulb)
+
+    val correctFormula = "(a || b) && c"
+    DeviceAnalyser.formula(bulb) should be(correctFormula)
+
+    val split = Device.split()
+    orAndWire.remove()
+    val orSplitWire = Wire.create(or, split)
+    val splitAndWire = Wire.create(split, and)
+    DeviceAnalyser.formula(bulb) should be(correctFormula)
+
+    val repeater = Device.repeater()
+    orSplitWire.remove()
+    splitAndWire.remove()
+    Wire.create(or, repeater)
+    Wire.create(repeater, and)
+    DeviceAnalyser.formula(bulb) should be(correctFormula)
+  }
 }
